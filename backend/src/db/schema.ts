@@ -81,4 +81,20 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
   }),
 }));
 
+export const webhookEvents = pgTable('webhook_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  provider: text('provider').notNull().default('paystack'),
+  eventId: text('event_id').notNull().unique(), // e.g. "charge.success:ref_abc123"
+  eventType: text('event_type').notNull(),
+  reference: text('reference'),
+  payload: text('payload').notNull(), // JSON stringified
+  processedAt: timestamp('processed_at').notNull().defaultNow(),
+});
+
+
+
+
 import { pgTable, text, integer, timestamp, uuid, pgEnum } from 'drizzle-orm/pg-core';
+
+
+

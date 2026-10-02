@@ -3,6 +3,9 @@ import { db } from '../db';
 import { wallets, users, transactions } from '../db/schema';
 import { randomBytes } from 'crypto';
 
+import { webhookEvents } from '../db/schema';
+import { eq, sql, desc } from 'drizzle-orm'; // make sure these are imported
+
 export class WalletError extends Error {
   constructor(message: string, public statusCode: number = 400) {
     super(message);
@@ -170,4 +173,34 @@ export async function getTransactionHistory(
     .offset(offset);
 
   return rows;
+}
+
+
+/**
+ * Idempotency check — returns true if this event was already processed.
+ * If not processed, records it atomically and returns false.
+ */
+export async function recordWebhookEvent(
+  eventId: string,
+  eventType: string,
+  reference: string | null,
+  payload: unknown
+): Promise<boolean> {
+  const payloadStr = JSON.stringify(payload);
+
+  try {
+    await db.insert(webhookEvents).values({
+      eventId,
+      eventType,
+      reference,
+      payload: payloadStr,
+    });
+    return false; // newly inserted → not processed yet
+  } catch (err: any) {
+    // Unique constraint violation = already processed
+    if (err.code === '23505') {
+      return true;
+    }
+    throw err;
+  }
 }

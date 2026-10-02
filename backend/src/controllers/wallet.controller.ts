@@ -10,6 +10,15 @@ import {
 } from '../services/wallet.service';
 import { fundSchema, sendSchema } from '../validators/wallet.validator';
 
+
+
+import { initializeTransaction } from '../services/paystack.service';
+import { randomBytes } from 'crypto';
+
+const generateReference = () =>
+  `PAYA-${Date.now()}-${randomBytes(4).toString('hex').toUpperCase()}`
+
+
 // GET /wallet/balance
 export async function getBalance(req: Request, res: Response): Promise<void> {
   const userId = req.user!.userId;
@@ -112,5 +121,58 @@ export async function history(req: Request, res: Response): Promise<void> {
   } catch (err) {
     console.error('history error:', err);
     res.status(500).json({ error: 'Something went wrong' });
+  }
+}
+
+
+
+// POST /wallet/paystack/initialize
+export async function initializePaystackFunding(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const parsed = fundSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      error: 'Validation failed',
+      details: parsed.error.flatten().fieldErrors,
+    });
+    return;
+  }
+
+  const { amount } = parsed.data;
+  const userId = req.user!.userId;
+
+  try {
+    // Fetch user for their email
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const reference = generateReference();
+    const result = await initializeTransaction(
+      user.email,
+      amount,
+      reference,
+      { userId: user.id }
+    );
+
+    res.json({
+      authorization_url: result.authorization_url,
+      access_code: result.access_code,
+      reference: result.reference,
+    });
+  } catch (err: any) {
+    console.error('initializePaystackFunding error:', err.response?.data || err.message);
+    res.status(500).json({
+      error: err.response?.data?.message || 'Failed to initialize payment',
+    });
   }
 }

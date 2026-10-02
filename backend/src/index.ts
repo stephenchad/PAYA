@@ -1,22 +1,24 @@
+import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import 'dotenv/config';  // ← side-effect import, runs first
 import { sql } from 'drizzle-orm';
 import { db } from './db';
 import authRoutes from './routes/auth.routes';
-
-
-
 import walletRoutes from './routes/wallet.routes';
-
+import webhookRoutes from './routes/webhook.routes'; // ← new
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors());
+
+// ⚠️ CRITICAL: Webhook routes MUST be mounted BEFORE express.json()
+// because express.json() consumes the raw body stream [citation:20]
+app.use('/webhooks', webhookRoutes);
+
+// Now the JSON parser for everything else
 app.use(express.json());
 
-// Health check
 app.get('/health', async (_req: Request, res: Response) => {
   try {
     await db.execute(sql`SELECT 1`);
@@ -39,14 +41,7 @@ app.get('/', (_req: Request, res: Response) => {
   res.send('PAYA API is running 💸');
 });
 
-import * as authCtrl from './controllers/auth.controller';
-console.log('authCtrl =', Object.keys(authCtrl));
-
-console.log('authRoutes =', typeof authRoutes, authRoutes);
-
-// Auth routes
 app.use('/auth', authRoutes);
-
 app.use('/wallet', walletRoutes);
 
 app.listen(PORT, () => {

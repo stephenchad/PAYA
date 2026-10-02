@@ -1,9 +1,19 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  Modal,
+} from 'react-native';
+import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
-import { walletApi } from '../../services/wallet.service';
+import { api } from '../../services/api';
 import { parseNairaToKobo, formatNaira } from '../../utils/currency';
 import { colors, spacing, radius } from '../../constants/theme';
 
@@ -13,29 +23,57 @@ export default function Fund() {
   const router = useRouter();
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [reference, setReference] = useState<string | null>(null);
 
   const handleQuick = (kobo: number) => setAmount((kobo / 100).toString());
 
   const handleSubmit = async () => {
     const kobo = parseNairaToKobo(amount);
-    if (kobo <= 0) {
-      Alert.alert('Invalid amount', 'Enter a valid amount.');
+    if (kobo < 10000) {
+      Alert.alert('Too small', 'Minimum funding is ₦100.');
       return;
     }
     if (kobo > 10_000_000) {
-      Alert.alert('Too large', 'Max ₦100,000 per funding in dev mode.');
+      Alert.alert('Too large', 'Max ₦100,000 per funding.');
       return;
     }
 
     setLoading(true);
     try {
-      await walletApi.fund(kobo, 'Dev funding');
-      Alert.alert('Success', `Added ${formatNaira(kobo)} to your wallet.`);
-      router.back();
+      const res = await api.post('/wallet/paystack/initialize', { amount: kobo });
+      setCheckoutUrl(res.data.authorization_url);
+      setReference(res.data.reference);
     } catch (err: any) {
-      Alert.alert('Funding failed', err.response?.data?.error || 'Try again');
+      Alert.alert('Error', err.response?.data?.error || 'Could not start payment');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Called when WebView navigates. Paystack redirects to your callback URL on success.
+  const handleNavigation = (navState: any) => {
+    const url = navState.url;
+
+    // Paystack test mode redirects to a URL containing 'paystack.co' or your callback
+    // When we see the callback URL pattern, payment is done (or cancelled)
+    if (url.includes('callback') || url.includes('success')) {
+      setCheckoutUrl(null);
+
+      // Verify with backend (which also gets the webhook)
+      setTimeout(async () => {
+        try {
+          const res = await api.get('/wallet/balance');
+          Alert.alert(
+            'Payment successful ✅',
+            `New balance: ${formatNaira(res.data.balance)}`
+          );
+          router.replace('/(app)/home');
+        } catch {
+          Alert.alert('Check balance', 'Payment may have succeeded. Pull to refresh on Home.');
+          router.replace('/(app)/home');
+        }
+      }, 2000);
     }
   };
 
@@ -48,7 +86,7 @@ export default function Fund() {
 
         <Text style={styles.title}>Fund wallet</Text>
         <Text style={styles.subtitle}>
-          Dev mode: money is credited instantly. Real Paystack comes in Step 7.
+          Pay securely with card, bank transfer, or USSD.
         </Text>
 
         <View style={{ marginTop: spacing.xl }}>
@@ -63,20 +101,41 @@ export default function Fund() {
 
         <View style={styles.quickRow}>
           {QUICK_AMOUNTS.map((k) => (
-            <TouchableOpacity
-              key={k}
-              style={styles.quickBtn}
-              onPress={() => handleQuick(k)}
-            >
+            <TouchableOpacity key={k} style={styles.quickBtn} onPress={() => handleQuick(k)}>
               <Text style={styles.quickText}>{formatNaira(k)}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
         <View style={{ marginTop: spacing.xl }}>
-          <Button title="Fund Wallet" onPress={handleSubmit} loading={loading} />
+          <Button title="Pay with Paystack" onPress={handleSubmit} loading={loading} />
         </View>
       </ScrollView>
+
+      {/* Paystack WebView Modal */}
+      <Modal visible={!!checkoutUrl} animationType="slide" onRequestClose={() => setCheckoutUrl(null)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setCheckoutUrl(null)}>
+              <Text style={styles.backText}>✕ Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Paystack Checkout</Text>
+            <View style={{ width: 60 }} />
+          </View>
+          {checkoutUrl && (
+            <WebView
+              source={{ uri: checkoutUrl }}
+              onNavigationStateChange={handleNavigation}
+              startInLoadingState
+              renderLoading={() => (
+                <View style={styles.center}>
+                  <Text style={{ color: colors.textMuted }}>Loading checkout…</Text>
+                </View>
+              )}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -98,4 +157,14 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   quickText: { color: colors.text, fontSize: 13, fontWeight: '600' },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });
