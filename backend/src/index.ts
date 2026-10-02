@@ -35,6 +35,11 @@ app.get('/', (_req: Request, res: Response) => {
   res.send('PAYA API is running 💸');
 });
 
+import * as authCtrl from './controllers/auth.controller';
+console.log('authCtrl =', Object.keys(authCtrl));
+
+console.log('authRoutes =', typeof authRoutes, authRoutes);
+
 // Auth routes
 app.use('/auth', authRoutes);
 
