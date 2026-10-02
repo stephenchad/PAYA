@@ -3,7 +3,6 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db';
 import { wallets } from '../db/schema';
 import {
-  fundWallet,
   sendMoney,
   getTransactionHistory,
   WalletError,
@@ -46,32 +45,7 @@ export async function getBalance(req: Request, res: Response): Promise<void> {
 }
 
 // POST /wallet/fund  (dev mode — will become Paystack in Step 7)
-export async function fund(req: Request, res: Response): Promise<void> {
-  const parsed = fundSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({
-      error: 'Validation failed',
-      details: parsed.error.flatten().fieldErrors,
-    });
-    return;
-  }
 
-  try {
-    const result = await fundWallet(req.user!.userId, parsed.data.amount, parsed.data.note);
-    res.status(201).json({
-      message: 'Wallet funded',
-      wallet: { balance: result.wallet.balance, currency: result.wallet.currency },
-      transaction: result.transaction,
-    });
-  } catch (err) {
-    if (err instanceof WalletError) {
-      res.status(err.statusCode).json({ error: err.message });
-      return;
-    }
-    console.error('fund error:', err);
-    res.status(500).json({ error: 'Something went wrong' });
-  }
-}
 
 // POST /wallet/send
 export async function send(req: Request, res: Response): Promise<void> {

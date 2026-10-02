@@ -46,6 +46,7 @@ export default function RootLayout() {
         }}
       />
       <StatusBar style="light" />
+      {isLocked && <LockScreen onUnlock={unlock} />}
     </SafeAreaProvider>
   );
 }

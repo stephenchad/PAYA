@@ -9,7 +9,13 @@
     "newArchEnabled": true,
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+         {
+            "faceIDPermission": "Allow PAYA to use Face ID to secure your wallet."
+         }
+      ]
     ],
     "ios": {
       "supportsTablet": true
