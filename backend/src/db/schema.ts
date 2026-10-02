@@ -39,3 +39,46 @@ export const walletsRelations = relations(wallets, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+
+// Add this to the bottom of schema.ts
+
+export const transactionTypeEnum = pgEnum('transaction_type', [
+  'fund',
+  'send',
+  'receive',
+]);
+
+export const transactionStatusEnum = pgEnum('transaction_status', [
+  'pending',
+  'success',
+  'failed',
+]);
+
+export const transactions = pgTable('transactions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  type: transactionTypeEnum('type').notNull(),
+  status: transactionStatusEnum('status').notNull().default('success'),
+  amount: integer('amount').notNull(),          // in kobo, always positive
+  balanceAfter: integer('balance_after').notNull(),
+  counterpartyId: uuid('counterparty_id').references(() => users.id, {
+    onDelete: 'set null',
+  }),
+  counterpartyName: text('counterparty_name'),
+  reference: text('reference').notNull().unique(),
+  note: text('note'),
+  metadata: text('metadata'),                   // JSON string for extra info
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const transactionsRelations = relations(transactions, ({ one }) => ({
+  user: one(users, {
+    fields: [transactions.userId],
+    references: [users.id],
+  }),
+}));
+
+import { pgTable, text, integer, timestamp, uuid, pgEnum } from 'drizzle-orm/pg-core';

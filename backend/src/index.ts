@@ -6,6 +6,10 @@ import { db } from './db';
 import authRoutes from './routes/auth.routes';
 
 
+
+import walletRoutes from './routes/wallet.routes';
+
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 
@@ -42,6 +46,8 @@ console.log('authRoutes =', typeof authRoutes, authRoutes);
 
 // Auth routes
 app.use('/auth', authRoutes);
+
+app.use('/wallet', walletRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 PAYA API running on http://localhost:${PORT}`);
