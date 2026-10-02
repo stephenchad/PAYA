@@ -1,6 +1,9 @@
+// src/index.ts
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { db } from './db';
+import { sql } from 'drizzle-orm';
 
 dotenv.config();
 
@@ -10,16 +13,25 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-// Health check
-app.get('/health', (_req: Request, res: Response) => {
-  res.json({
-    status: 'ok',
-    service: 'PAYA API',
-    time: new Date().toISOString(),
-  });
+app.get('/health', async (_req: Request, res: Response) => {
+  try {
+    // A simple query to check the connection
+    await db.execute(sql`SELECT 1`);
+    res.json({
+      status: 'ok',
+      service: 'PAYA API',
+      db: 'connected',
+      time: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      db: 'disconnected',
+      message: err instanceof Error ? err.message : 'Unknown error',
+    });
+  }
 });
 
-// Root
 app.get('/', (_req: Request, res: Response) => {
   res.send('PAYA API is running 💸');
 });
